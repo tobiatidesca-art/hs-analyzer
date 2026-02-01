@@ -1,0 +1,10 @@
+{
+  "generated_at": "2026-02-01 13:33 UTC",
+  "parameters": {
+    "stop_loss_pct": 3.5,
+    "take_profit_pct": 9.0,
+    "trailing_pct": 2.5,
+    "swing_period": 5
+  },
+  "signals": []
+}
