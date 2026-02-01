@@ -1,0 +1,3158 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Head & Shoulders Pattern Analyzer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0e14;
+            --bg-secondary: #151a23;
+            --bg-card: #1a1f2e;
+            --accent-primary: #00ff9f;
+            --accent-secondary: #00d4ff;
+            --accent-danger: #ff3366;
+            --text-primary: #e6e8eb;
+            --text-secondary: #a0a6b1;
+            --border-color: #2a3142;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, #0d1117 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .grain-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            z-index: 1;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 2;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 0 30px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+            margin-bottom: 10px;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        .subtitle {
+            font-family: 'IBM Plex Mono', monospace;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            animation: fadeIn 1s ease-out 0.2s both;
+        }
+
+        .upload-section {
+            background: var(--bg-card);
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 40px;
+            margin-bottom: 30px;
+            text-align: center;
+            transition: all 0.3s ease;
+            animation: fadeInUp 0.8s ease-out 0.3s both;
+        }
+
+        .upload-section:hover {
+            border-color: var(--accent-primary);
+            background: rgba(0, 255, 159, 0.05);
+        }
+
+        .upload-section.dragover {
+            border-color: var(--accent-secondary);
+            background: rgba(0, 212, 255, 0.1);
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .upload-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+        }
+
+        .upload-desc {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-input-label {
+            display: inline-block;
+            padding: 14px 32px;
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+            border-radius: 8px;
+            color: var(--bg-primary);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .file-input-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 255, 159, 0.3);
+        }
+
+        .file-name {
+            margin-top: 15px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--accent-primary);
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+            animation: fadeInUp 0.8s ease-out 0.4s both;
+        }
+
+        .control-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .control-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .control-card:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 255, 159, 0.1);
+        }
+
+        .control-card:hover::before {
+            opacity: 1;
+        }
+
+        .control-label {
+            display: block;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent-primary);
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 12px 15px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(0, 255, 159, 0.1);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px 24px;
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+            border: none;
+            border-radius: 8px;
+            color: var(--bg-primary);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn:hover:not(:disabled)::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 255, 159, 0.3);
+        }
+
+        .btn-text {
+            position: relative;
+            z-index: 1;
+        }
+
+        .chart-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            position: relative;
+            animation: fadeInUp 0.8s ease-out 0.6s both;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .chart-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .chart-info {
+            display: flex;
+            gap: 20px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.85rem;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .info-label {
+            color: var(--text-secondary);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .info-value {
+            color: var(--accent-primary);
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        #chartCanvas {
+            max-height: 600px;
+        }
+
+        .patterns-list {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 30px;
+            animation: fadeInUp 0.8s ease-out 0.8s both;
+        }
+
+        .patterns-header {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+        }
+
+        .pattern-item {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--accent-primary);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .pattern-item:hover {
+            border-left-color: var(--accent-secondary);
+            transform: translateX(5px);
+            box-shadow: 0 4px 16px rgba(0, 255, 159, 0.15);
+        }
+
+        .pattern-item.active {
+            border: 2px solid var(--accent-primary);
+            border-left: 4px solid var(--accent-primary);
+            box-shadow: 0 8px 32px rgba(0, 255, 159, 0.25);
+            transform: scale(1.02);
+        }
+
+        .pattern-item.bearish {
+            border-left-color: var(--accent-danger);
+        }
+
+        .pattern-item.bearish.active {
+            border-color: var(--accent-danger);
+            border-left-color: var(--accent-danger);
+            box-shadow: 0 8px 32px rgba(255, 51, 102, 0.25);
+        }
+
+        .zoom-indicator {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: var(--accent-primary);
+            color: var(--bg-primary);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .pattern-item:hover .zoom-indicator {
+            opacity: 1;
+        }
+
+        .pattern-item.active .zoom-indicator {
+            opacity: 1;
+            background: var(--accent-secondary);
+        }
+
+        .pattern-detail-view {
+            background: var(--bg-card);
+            border: 2px solid var(--accent-primary);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            display: none;
+            animation: slideDown 0.4s ease-out;
+        }
+
+        .pattern-detail-view.active {
+            display: block;
+        }
+
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .detail-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+        }
+
+        .close-detail {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .close-detail:hover {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
+        .detail-canvas-container {
+            background: var(--bg-primary);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            min-height: 500px;
+        }
+
+        #detailCanvas {
+            min-height: 450px !important;
+        }
+
+        .detail-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .detail-info-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .detail-info-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 8px;
+        }
+
+        .detail-info-value {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 1.1rem;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .timeline-marker {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .timeline-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-primary);
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .pattern-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .pattern-type {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-weight: 600;
+        }
+
+        .pattern-type.bullish {
+            color: var(--accent-primary);
+        }
+
+        .pattern-type.bearish {
+            color: var(--accent-danger);
+        }
+
+        .pattern-date {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .pattern-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .detail-label {
+            color: var(--text-secondary);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+        }
+
+        .detail-value {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .trade-result {
+            margin-top: 15px;
+            padding: 12px;
+            background: var(--bg-primary);
+            border-radius: 6px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.85rem;
+        }
+
+        .trade-result.profit {
+            border-left: 3px solid var(--accent-primary);
+        }
+
+        .trade-result.loss {
+            border-left: 3px solid var(--accent-danger);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            font-family: 'IBM Plex Mono', monospace;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        .no-patterns {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .statistics-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            animation: fadeInUp 0.8s ease-out 0.7s both;
+        }
+
+        .section-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .equity-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .equity-canvas-wrapper {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+
+        .equity-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .equity-title {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--accent-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .equity-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-small:hover {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
+        #equityCanvas {
+            /* height controlled by parent wrapper */
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .metric-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .metric-card:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+        }
+
+        .metric-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 8px;
+        }
+
+        .metric-value {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 1.3rem;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .metric-value.success {
+            color: var(--accent-primary);
+        }
+
+        .metric-value.danger {
+            color: var(--accent-danger);
+        }
+
+        .walkforward-section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .section-subtitle {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .wf-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .control-label-inline {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-label-inline input {
+            width: 60px;
+            padding: 6px 10px;
+        }
+
+        #walkforwardCanvas {
+            /* height controlled by parent wrapper */
+        }
+
+        .wf-canvas-wrapper {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+
+        #wfResults {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .wf-result-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--accent-primary);
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .wf-result-card.out-sample {
+            border-left-color: var(--accent-secondary);
+        }
+
+        .wf-period {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .wf-metric {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem;
+        }
+
+        .wf-metric-label {
+            color: var(--text-secondary);
+        }
+
+        .wf-metric-value {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ── TAB NAVIGATION ────────────────────────────────── */
+        .tab-nav {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 35px;
+            animation: fadeIn 0.6s ease-out 0.1s both;
+        }
+        .tab-btn {
+            padding: 12px 32px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .tab-btn::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+            transition: width 0.3s ease;
+        }
+        .tab-btn:hover {
+            border-color: var(--accent-primary);
+            color: var(--text-primary);
+        }
+        .tab-btn.active {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+            background: rgba(0, 255, 159, 0.06);
+        }
+        .tab-btn.active::after {
+            width: 60%;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        /* ── SCANNER SECTION ───────────────────────────────── */
+        .scanner-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .scanner-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        .scanner-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-primary);
+            animation: pulse 2s infinite;
+        }
+        .scanner-status-dot.stale {
+            background: #f0ad4e;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .scanner-params-bar {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin-bottom: 28px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.78rem;
+        }
+        .scanner-param {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .scanner-param-label {
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 0.68rem;
+        }
+        .scanner-param-value {
+            color: var(--accent-primary);
+            font-weight: 600;
+            font-size: 0.88rem;
+        }
+
+        /* ── ADD SYMBOL FORM ───────────────────────────────── */
+        .add-symbol-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .add-symbol-input {
+            flex: 1;
+            min-width: 180px;
+            max-width: 280px;
+            padding: 10px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+        }
+        .add-symbol-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(0, 255, 159, 0.1);
+        }
+        .add-symbol-input::placeholder {
+            color: var(--text-secondary);
+            text-transform: none;
+        }
+        .btn-add-symbol {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            border: none;
+            border-radius: 8px;
+            color: var(--bg-primary);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.82rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn-add-symbol:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(0, 255, 159, 0.3);
+        }
+        .added-symbols-list {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .added-symbol-tag {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 5px 12px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.78rem;
+            color: var(--accent-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .added-symbol-tag .remove-tag {
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        .added-symbol-tag .remove-tag:hover {
+            color: var(--accent-danger);
+        }
+
+        /* ── SIGNAL CARDS ──────────────────────────────────── */
+        .signals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 18px;
+        }
+        .signal-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 22px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .signal-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+        }
+        .signal-card.buy::before  { background: linear-gradient(90deg, var(--accent-primary), #00e676); }
+        .signal-card.sell::before { background: linear-gradient(90deg, var(--accent-danger), #ff6b81); }
+        .signal-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 28px rgba(0,0,0,0.25);
+        }
+        .signal-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .signal-symbol {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .signal-badge {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .signal-badge.buy  { background: rgba(0,255,159,0.15); color: var(--accent-primary); }
+        .signal-badge.sell { background: rgba(255,51,102,0.15); color: var(--accent-danger); }
+
+        .signal-confidence {
+            position: absolute;
+            top: 18px; right: 18px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-secondary);
+        }
+        .signal-confidence.high { color: var(--accent-primary); }
+
+        .signal-prices {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+        .signal-price-item {
+            text-align: center;
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            padding: 10px 6px;
+        }
+        .signal-price-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 5px;
+        }
+        .signal-price-value {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.92rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .signal-price-value.entry { color: var(--accent-secondary); }
+        .signal-price-value.sl    { color: var(--accent-danger); }
+        .signal-price-value.tp    { color: var(--accent-primary); }
+
+        .signal-meta {
+            display: flex;
+            justify-content: space-between;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+        }
+        .signal-meta span { display: flex; align-items: center; gap: 5px; }
+
+        .no-signals {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.9rem;
+        }
+        .no-signals .icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.4; }
+
+        /* ── SCANNER LEGEND ────────────────────────────────── */
+        .scanner-legend {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 28px;
+            flex-wrap: wrap;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        .legend-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+        }
+        .legend-dot.buy  { background: var(--accent-primary); }
+        .legend-dot.sell { background: var(--accent-danger); }
+        .legend-dot.high { background: var(--accent-primary); box-shadow: 0 0 6px var(--accent-primary); }
+        .legend-dot.med  { background: #f0ad4e; }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 2rem; }
+            .controls-grid { grid-template-columns: 1fr; }
+            .chart-info { flex-direction: column; gap: 10px; }
+            .pattern-details { grid-template-columns: 1fr; }
+            .tab-btn { padding: 10px 20px; font-size: 0.78rem; }
+            .signals-grid { grid-template-columns: 1fr; }
+            .scanner-params-bar { gap: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="grain-overlay"></div>
+    
+    <div class="container">
+        <header>
+            <h1>Head & Shoulders Analyzer</h1>
+            <p class="subtitle">Pattern Detection · Scanner + Backtesting</p>
+        </header>
+
+        <!-- TAB NAVIGATION -->
+        <div class="tab-nav">
+            <button class="tab-btn active" onclick="switchTab('scanner')">📡 Scanner</button>
+            <button class="tab-btn" onclick="switchTab('backtest')">📊 Backtesting</button>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════
+             TAB: SCANNER
+             ═══════════════════════════════════════════════════════ -->
+        <div class="tab-content active" id="tab-scanner">
+
+            <div class="scanner-header">
+                <div class="scanner-status" id="scannerStatus">
+                    <div class="scanner-status-dot" id="statusDot"></div>
+                    <span id="statusText">Caricamento segnali...</span>
+                </div>
+            </div>
+
+            <!-- Parametri Scanner (solo lettura, mostrano i valori dal JSON) -->
+            <div class="scanner-params-bar" id="scannerParamsBar">
+                <div class="scanner-param">
+                    <span class="scanner-param-label">Stop Loss</span>
+                    <span class="scanner-param-value" id="paramSL">–</span>
+                </div>
+                <div class="scanner-param">
+                    <span class="scanner-param-label">Take Profit</span>
+                    <span class="scanner-param-value" id="paramTP">–</span>
+                </div>
+                <div class="scanner-param">
+                    <span class="scanner-param-label">Trailing</span>
+                    <span class="scanner-param-value" id="paramTR">–</span>
+                </div>
+                <div class="scanner-param">
+                    <span class="scanner-param-label">Aggiornamento</span>
+                    <span class="scanner-param-value" id="paramDate">–</span>
+                </div>
+            </div>
+
+            <!-- Aggiungi titolo -->
+            <div class="add-symbol-bar">
+                <input type="text" class="add-symbol-input" id="addSymbolInput"
+                       placeholder="Es. AAPL, MSFT, ENI.MI …"
+                       onkeydown="if(event.key==='Enter') addSymbol()">
+                <button class="btn-add-symbol" onclick="addSymbol()">+ Aggiungi</button>
+                <div class="added-symbols-list" id="addedSymbolsList"></div>
+            </div>
+
+            <!-- Legend -->
+            <div class="scanner-legend">
+                <div class="legend-item"><div class="legend-dot buy"></div> BUY – Inverse H&S</div>
+                <div class="legend-item"><div class="legend-dot sell"></div> SELL – H&S Bearish</div>
+                <div class="legend-item"><div class="legend-dot high"></div> Confidenza Alta</div>
+                <div class="legend-item"><div class="legend-dot med"></div> Confidenza Media</div>
+            </div>
+
+            <!-- Signal Cards -->
+            <div class="signals-grid" id="signalsGrid">
+                <div class="no-signals">
+                    <div class="icon">📡</div>
+                    Caricamento segnali...
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════
+             TAB: BACKTESTING (tutto il contenuto originale)
+             ═══════════════════════════════════════════════════════ -->
+        <div class="tab-content" id="tab-backtest">
+
+        <div class="upload-section" id="uploadSection">
+            <div class="upload-icon">📊</div>
+            <h2 class="upload-title">Carica Dati Storici CSV</h2>
+            <p class="upload-desc">
+                Formato: Date,Open,High,Low,Close,Volume<br>
+                Trascina qui il file o clicca per selezionarlo
+            </p>
+            <div class="file-input-wrapper">
+                <input type="file" id="csvFile" class="file-input" accept=".csv" onchange="handleFileSelect(event)">
+                <label for="csvFile" class="file-input-label">Seleziona File CSV</label>
+            </div>
+            <div class="file-name" id="fileName"></div>
+        </div>
+
+        <div class="controls-grid">
+            <div class="control-card">
+                <label class="control-label">Stop Loss (%)</label>
+                <input type="number" id="stopLoss" value="2.0" min="0.1" max="10" step="0.1">
+            </div>
+
+            <div class="control-card">
+                <label class="control-label">Take Profit (%)</label>
+                <input type="number" id="takeProfit" value="4.0" min="0.1" max="20" step="0.1">
+            </div>
+
+            <div class="control-card">
+                <label class="control-label">Trailing Stop (%)</label>
+                <input type="number" id="trailingStop" value="1.0" min="0.1" max="10" step="0.1">
+            </div>
+
+            <div class="control-card">
+                <button class="btn" id="analyzeBtn" onclick="analyzePattern()" disabled>
+                    <span class="btn-text">Carica un file CSV per iniziare</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <div class="chart-header">
+                <h2 class="chart-title" id="chartTitle">Grafico Prezzi</h2>
+                <div class="chart-info">
+                    <div class="info-item">
+                        <span class="info-label">Pattern Trovati</span>
+                        <span class="info-value" id="patternsCount">0</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Win Rate</span>
+                        <span class="info-value" id="winRate">0%</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Profit Factor</span>
+                        <span class="info-value" id="profitFactor">0.00</span>
+                    </div>
+                </div>
+            </div>
+            <canvas id="chartCanvas"></canvas>
+        </div>
+
+        <!-- Statistics Section -->
+        <div class="statistics-section" id="statisticsSection" style="display: none;">
+            <h2 class="section-title">📊 Analisi Statistica Completa</h2>
+            
+            <!-- Equity Chart -->
+            <div class="equity-container">
+                <div class="equity-header">
+                    <h3 class="equity-title">Equity Curve</h3>
+                    <div class="equity-controls">
+                        <button class="btn-small" onclick="exportEquity()">📥 Esporta CSV</button>
+                    </div>
+                </div>
+                <div class="equity-canvas-wrapper">
+                    <canvas id="equityCanvas"></canvas>
+                </div>
+            </div>
+
+            <!-- Performance Metrics -->
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-label">Total Return</div>
+                    <div class="metric-value" id="totalReturn">0%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Max Drawdown</div>
+                    <div class="metric-value danger" id="maxDrawdown">0%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Sharpe Ratio</div>
+                    <div class="metric-value" id="sharpeRatio">0.00</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Avg Win</div>
+                    <div class="metric-value success" id="avgWin">0%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Avg Loss</div>
+                    <div class="metric-value danger" id="avgLoss">0%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Expectancy</div>
+                    <div class="metric-value" id="expectancy">0%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Win Streak</div>
+                    <div class="metric-value" id="winStreak">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Loss Streak</div>
+                    <div class="metric-value" id="lossStreak">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Recovery Factor</div>
+                    <div class="metric-value" id="recoveryFactor">0.00</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Total Trades</div>
+                    <div class="metric-value" id="totalTrades">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Avg Trade Duration</div>
+                    <div class="metric-value" id="avgDuration">0 days</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Best Trade</div>
+                    <div class="metric-value success" id="bestTrade">0%</div>
+                </div>
+            </div>
+
+            <!-- Walk Forward Analysis -->
+            <div class="walkforward-section">
+                <div class="section-header">
+                    <h3 class="section-subtitle">🔄 Walk-Forward Analysis</h3>
+                    <div class="wf-controls">
+                        <label class="control-label-inline">In-Sample: 
+                            <input type="number" id="inSampleMonths" value="12" min="3" max="36" step="3">
+                            mesi
+                        </label>
+                        <label class="control-label-inline">Out-Sample: 
+                            <input type="number" id="outSampleMonths" value="6" min="1" max="12" step="1">
+                            mesi
+                        </label>
+                        <button class="btn-small" onclick="runWalkForward()">▶ Esegui WFA</button>
+                    </div>
+                </div>
+                <div class="wf-canvas-wrapper">
+                    <canvas id="walkforwardCanvas"></canvas>
+                </div>
+                <div id="wfResults"></div>
+            </div>
+        </div>
+
+        <div class="patterns-list">
+            <h2 class="patterns-header">Pattern Rilevati</h2>
+            
+            <!-- Detail View -->
+            <div class="pattern-detail-view" id="patternDetailView">
+                <div class="detail-header">
+                    <h3 class="detail-title" id="detailTitle">Pattern Detail</h3>
+                    <button class="close-detail" onclick="closeDetailView()">✕ Chiudi</button>
+                </div>
+                <div class="detail-canvas-container">
+                    <canvas id="detailCanvas"></canvas>
+                </div>
+                <div class="detail-info-grid" id="detailInfoGrid"></div>
+            </div>
+            
+            <div id="patternsList">
+                <div class="no-patterns">Carica un file CSV e analizza i pattern</div>
+            </div>
+        </div>
+        </div><!-- end tab-backtest -->
+    </div><!-- end container -->
+
+    <script>
+        let chart = null;
+        let detailChart = null;
+        let equityChart = null;
+        let walkforwardChart = null;
+        let priceData = [];
+        let detectedPatterns = [];
+        let symbolName = 'Indice';
+        let activePatternIndex = null;
+        let equityData = [];
+
+        // Configurazione Chart.js
+        const chartConfig = {
+            type: 'line',
+            data: {
+                datasets: [{
+                    label: 'Prezzo',
+                    data: [],
+                    borderColor: '#00ff9f',
+                    backgroundColor: 'rgba(0, 255, 159, 0.1)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 6,
+                    tension: 0.1,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(26, 31, 46, 0.95)',
+                        titleColor: '#00ff9f',
+                        bodyColor: '#e6e8eb',
+                        borderColor: '#2a3142',
+                        borderWidth: 1,
+                        padding: 12,
+                        displayColors: false,
+                        callbacks: {
+                            label: function(context) {
+                                return 'Prezzo: ' + context.parsed.y.toFixed(2);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'day',
+                            displayFormats: {
+                                day: 'dd MMM yyyy'
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)',
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#a0a6b1',
+                            font: {
+                                family: 'IBM Plex Mono',
+                                size: 11
+                            }
+                        }
+                    },
+                    y: {
+                        position: 'right',
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)',
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#a0a6b1',
+                            font: {
+                                family: 'IBM Plex Mono',
+                                size: 11
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        // Inizializza chart
+        const ctx = document.getElementById('chartCanvas').getContext('2d');
+        chart = new Chart(ctx, chartConfig);
+
+        // Inizializza detail chart
+        const detailCtx = document.getElementById('detailCanvas').getContext('2d');
+        detailChart = new Chart(detailCtx, {
+            type: 'line',
+            data: { datasets: [] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            color: '#e6e8eb',
+                            font: {
+                                family: 'IBM Plex Mono',
+                                size: 11
+                            },
+                            usePointStyle: true,
+                            padding: 15
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(26, 31, 46, 0.95)',
+                        titleColor: '#00ff9f',
+                        bodyColor: '#e6e8eb',
+                        borderColor: '#2a3142',
+                        borderWidth: 1,
+                        padding: 12,
+                        displayColors: true,
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + context.parsed.y.toFixed(2);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'day',
+                            displayFormats: {
+                                day: 'dd MMM yyyy'
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)',
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#a0a6b1',
+                            font: {
+                                family: 'IBM Plex Mono',
+                                size: 11
+                            },
+                            maxTicksLimit: 15
+                        }
+                    },
+                    y: {
+                        position: 'right',
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)',
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#a0a6b1',
+                            font: {
+                                family: 'IBM Plex Mono',
+                                size: 11
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Mostra dettaglio pattern
+        function showPatternDetail(patternIndex) {
+            const pattern = detectedPatterns[patternIndex];
+            if (!pattern) return;
+
+            activePatternIndex = patternIndex;
+
+            // DEBUG: Log pattern info
+            console.log('=== PATTERN DETAIL ===');
+            console.log('Pattern type:', pattern.type);
+            console.log('Left Shoulder Bar:', pattern.leftShoulderBar, 'Date:', pattern.leftShoulder.date);
+            console.log('Head Bar:', pattern.headBar, 'Date:', pattern.head.date);
+            console.log('Right Shoulder Bar:', pattern.rightShoulderBar, 'Date:', pattern.rightShoulder.date);
+            console.log('Break Index:', pattern.breakIndex, 'Date:', pattern.breakDate);
+            console.log('Total data length:', priceData.length);
+
+            // Update active state
+            document.querySelectorAll('.pattern-item').forEach((item, idx) => {
+                if (idx === patternIndex) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+
+            // Show detail view
+            const detailView = document.getElementById('patternDetailView');
+            detailView.classList.add('active');
+
+            // Update title
+            const title = pattern.type === 'bearish' ? 
+                '▼ Bearish Head & Shoulders Detail' : 
+                '▲ Bullish Inverse Head & Shoulders Detail';
+            document.getElementById('detailTitle').textContent = title;
+            document.getElementById('detailTitle').style.color = 
+                pattern.type === 'bearish' ? 'var(--accent-danger)' : 'var(--accent-primary)';
+
+            // Calcola range da mostrare (60 giorni prima, 40 dopo)
+            const beforeBars = 60;
+            const afterBars = 40;
+            const startIdx = Math.max(0, pattern.leftShoulderBar - beforeBars);
+            const endIdx = Math.min(priceData.length - 1, pattern.breakIndex + afterBars);
+
+            console.log('Start index:', startIdx, 'End index:', endIdx, 'Range:', endIdx - startIdx + 1, 'bars');
+
+            const detailData = priceData.slice(startIdx, endIdx + 1);
+
+            console.log('Detail data length:', detailData.length);
+            console.log('First date:', detailData[0].date);
+            console.log('Last date:', detailData[detailData.length - 1].date);
+
+            // Prepara dati per il grafico
+            const priceDataset = {
+                label: 'Prezzo',
+                data: detailData.map(d => ({ x: d.date, y: d.close })),
+                borderColor: '#00ff9f',
+                backgroundColor: 'rgba(0, 255, 159, 0.1)',
+                borderWidth: 2,
+                pointRadius: 0,
+                pointHoverRadius: 6,
+                tension: 0.1,
+                fill: true
+            };
+
+            const color = pattern.type === 'bearish' ? '#ff3366' : '#00ff9f';
+
+            // Pattern shoulders e head (con label)
+            const patternDataset = {
+                label: 'Pattern H&S',
+                data: [
+                    { x: pattern.leftShoulder.date, y: pattern.leftShoulder.price },
+                    { x: pattern.head.date, y: pattern.head.price },
+                    { x: pattern.rightShoulder.date, y: pattern.rightShoulder.price }
+                ],
+                borderColor: color,
+                backgroundColor: 'transparent',
+                borderWidth: 3,
+                pointRadius: 10,
+                pointBackgroundColor: color,
+                pointBorderColor: '#fff',
+                pointBorderWidth: 3,
+                showLine: true,
+                tension: 0,
+                pointHoverRadius: 12
+            };
+
+            // Neckline estesa
+            const necklineDataset = {
+                label: 'Neckline',
+                data: [
+                    { x: detailData[0].date, y: pattern.neckline },
+                    { x: detailData[detailData.length - 1].date, y: pattern.neckline }
+                ],
+                borderColor: color,
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                borderDash: [10, 5],
+                pointRadius: 0,
+                showLine: true
+            };
+
+            // Entry point (giorno SUCCESSIVO alla rottura)
+            const entryDataset = {
+                label: 'Entry (giorno dopo rottura)',
+                data: [{ x: pattern.tradeResult.entryDate, y: pattern.tradeResult.entryPrice }],
+                borderColor: '#00d4ff',
+                backgroundColor: '#00d4ff',
+                pointRadius: 12,
+                pointStyle: 'triangle',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                showLine: false,
+                pointHoverRadius: 15
+            };
+
+            // Exit point (se disponibile)
+            const datasets = [priceDataset, necklineDataset, patternDataset, entryDataset];
+            
+            if (pattern.tradeResult.exit !== 'open') {
+                const exitColor = pattern.tradeResult.profit >= 0 ? '#00ff9f' : '#ff3366';
+                datasets.push({
+                    label: 'Exit Point (' + pattern.tradeResult.exit.replace('_', ' ') + ')',
+                    data: [{ x: pattern.tradeResult.exitDate, y: pattern.tradeResult.exitPrice }],
+                    borderColor: exitColor,
+                    backgroundColor: exitColor,
+                    pointRadius: 12,
+                    pointStyle: 'rectRot',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    showLine: false,
+                    pointHoverRadius: 15
+                });
+            }
+
+            // Aggiorna GRAFICO DETTAGLIO con zoom forzato
+            detailChart.data.datasets = datasets;
+            detailChart.options.plugins.legend.display = true;
+            
+            // IMPORTANTE: Forza zoom impostando min/max dell'asse X
+            detailChart.options.scales.x.min = detailData[0].date.getTime();
+            detailChart.options.scales.x.max = detailData[detailData.length - 1].date.getTime();
+            
+            console.log('X-axis min:', new Date(detailChart.options.scales.x.min));
+            console.log('X-axis max:', new Date(detailChart.options.scales.x.max));
+            
+            detailChart.update();
+
+            // Update info cards
+            updateDetailInfo(pattern, startIdx, endIdx);
+
+            // Scroll to detail view
+            setTimeout(() => {
+                detailView.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+
+        // Chiudi vista dettaglio
+        function closeDetailView() {
+            document.getElementById('patternDetailView').classList.remove('active');
+            document.querySelectorAll('.pattern-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            activePatternIndex = null;
+        }
+
+        // Update detail info
+        function updateDetailInfo(pattern, startIdx, endIdx) {
+            const container = document.getElementById('detailInfoGrid');
+            
+            const daysBeforeBreak = pattern.breakIndex - pattern.leftShoulderBar;
+            const daysInView = endIdx - startIdx + 1;
+            const priceMove = ((pattern.breakPrice - pattern.leftShoulder.price) / pattern.leftShoulder.price * 100);
+
+            container.innerHTML = `
+                <div class="detail-info-card">
+                    <div class="detail-info-label">Spalla Sinistra</div>
+                    <div class="detail-info-value">${pattern.leftShoulder.price.toFixed(2)}</div>
+                    <div class="timeline-marker">
+                        <div class="timeline-dot"></div>
+                        ${pattern.leftShoulder.date.toLocaleDateString('it-IT')}
+                    </div>
+                </div>
+
+                <div class="detail-info-card">
+                    <div class="detail-info-label">Testa (${pattern.type === 'bearish' ? 'Massimo' : 'Minimo'})</div>
+                    <div class="detail-info-value">${pattern.head.price.toFixed(2)}</div>
+                    <div class="timeline-marker">
+                        <div class="timeline-dot"></div>
+                        ${pattern.head.date.toLocaleDateString('it-IT')}
+                    </div>
+                </div>
+
+                <div class="detail-info-card">
+                    <div class="detail-info-label">Spalla Destra</div>
+                    <div class="detail-info-value">${pattern.rightShoulder.price.toFixed(2)}</div>
+                    <div class="timeline-marker">
+                        <div class="timeline-dot"></div>
+                        ${pattern.rightShoulder.date.toLocaleDateString('it-IT')}
+                    </div>
+                </div>
+
+                <div class="detail-info-card">
+                    <div class="detail-info-label">Neckline</div>
+                    <div class="detail-info-value">${pattern.neckline.toFixed(2)}</div>
+                    <div class="timeline-marker">
+                        <div class="timeline-dot"></div>
+                        Livello chiave
+                    </div>
+                </div>
+
+                <div class="detail-info-card">
+                    <div class="detail-info-label">Rottura Neckline (segnale)</div>
+                    <div class="detail-info-value">${pattern.breakPrice.toFixed(2)}</div>
+                    <div class="timeline-marker">
+                        <div class="timeline-dot" style="background: #00d4ff"></div>
+                        ${pattern.breakDate.toLocaleDateString('it-IT')}
+                    </div>
+                </div>
+
+                <div class="detail-info-card">
+                    <div class="detail-info-label">Entry (giorno dopo)</div>
+                    <div class="detail-info-value">${pattern.tradeResult.entryPrice.toFixed(2)}</div>
+                    <div class="timeline-marker">
+                        <div class="timeline-dot" style="background: #00d4ff"></div>
+                        ${pattern.tradeResult.entryDate.toLocaleDateString('it-IT')}
+                    </div>
+                </div>
+
+                <div class="detail-info-card">
+                    <div class="detail-info-label">Altezza Pattern</div>
+                    <div class="detail-info-value">${pattern.patternHeight.toFixed(2)}</div>
+                    <div class="timeline-marker">
+                        <div class="timeline-dot"></div>
+                        ${(pattern.patternHeight / pattern.head.price * 100).toFixed(1)}% del prezzo
+                    </div>
+                </div>
+
+                <div class="detail-info-card">
+                    <div class="detail-info-label">Durata Formazione</div>
+                    <div class="detail-info-value">${daysBeforeBreak} giorni</div>
+                    <div class="timeline-marker">
+                        <div class="timeline-dot"></div>
+                        Spalla SX → Rottura
+                    </div>
+                </div>
+
+                <div class="detail-info-card">
+                    <div class="detail-info-label">Movimento Pre-Rottura</div>
+                    <div class="detail-info-value" style="color: ${priceMove >= 0 ? 'var(--accent-primary)' : 'var(--accent-danger)'}">
+                        ${priceMove >= 0 ? '+' : ''}${priceMove.toFixed(2)}%
+                    </div>
+                    <div class="timeline-marker">
+                        <div class="timeline-dot"></div>
+                        Spalla SX → Entry
+                    </div>
+                </div>
+
+                <div class="detail-info-card">
+                    <div class="detail-info-label">Esito Trade</div>
+                    <div class="detail-info-value" style="color: ${pattern.tradeResult.profit >= 0 ? 'var(--accent-primary)' : 'var(--accent-danger)'}">
+                        ${pattern.tradeResult.profit >= 0 ? '+' : ''}${pattern.tradeResult.profit.toFixed(2)}%
+                    </div>
+                    <div class="timeline-marker">
+                        <div class="timeline-dot" style="background: ${pattern.tradeResult.profit >= 0 ? 'var(--accent-primary)' : 'var(--accent-danger)'}"></div>
+                        ${pattern.tradeResult.exit.replace('_', ' ')}
+                    </div>
+                </div>
+
+                <div class="detail-info-card">
+                    <div class="detail-info-label">Data Uscita</div>
+                    <div class="detail-info-value" style="font-size: 0.9rem;">${pattern.tradeResult.exitDate.toLocaleDateString('it-IT')}</div>
+                    <div class="timeline-marker">
+                        <div class="timeline-dot"></div>
+                        Prezzo: ${pattern.tradeResult.exitPrice.toFixed(2)}
+                    </div>
+                </div>
+
+                <div class="detail-info-card">
+                    <div class="detail-info-label">Trailing Stop</div>
+                    <div class="detail-info-value">${pattern.tradeResult.trailingActivated ? 'Attivato ✓' : 'Non attivato'}</div>
+                    <div class="timeline-marker">
+                        <div class="timeline-dot" style="background: ${pattern.tradeResult.trailingActivated ? 'var(--accent-primary)' : 'var(--text-secondary)'}"></div>
+                        ${pattern.tradeResult.trailingActivated ? 'Stop trascinato' : 'SL fisso'}
+                    </div>
+                </div>
+
+                <div class="detail-info-card">
+                    <div class="detail-info-label">Periodo Analizzato</div>
+                    <div class="detail-info-value">${daysInView} giorni</div>
+                    <div class="timeline-marker">
+                        <div class="timeline-dot"></div>
+                        60 gg prima, 40 gg dopo
+                    </div>
+                </div>
+            `;
+        }
+
+        // Drag and drop
+        const uploadSection = document.getElementById('uploadSection');
+
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('dragover');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        // Gestione selezione file
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+
+        // Processo file CSV
+        function handleFile(file) {
+            document.getElementById('fileName').textContent = `📄 ${file.name}`;
+            
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const csvText = e.target.result;
+                priceData = parseCSV(csvText, file.name);
+                
+                if (priceData.length > 0) {
+                    // Estrai nome simbolo dal filename
+                    symbolName = file.name.replace('_historical_data.csv', '').replace('.csv', '');
+                    
+                    updateChart(priceData, symbolName);
+                    
+                    const btn = document.getElementById('analyzeBtn');
+                    btn.disabled = false;
+                    btn.querySelector('.btn-text').textContent = 'Analizza Pattern';
+                    
+                    document.getElementById('patternsList').innerHTML = 
+                        `<div class="no-patterns">Dati caricati! ${priceData.length} giorni. Clicca "Analizza Pattern"</div>`;
+                } else {
+                    alert('Errore nel parsing del CSV. Verifica il formato.');
+                }
+            };
+            
+            reader.readAsText(file);
+        }
+
+        // Parse CSV (supporta entrambi i formati)
+        function parseCSV(csv, filename) {
+            const lines = csv.trim().split('\n');
+            const data = [];
+            let startLine = 1;
+            let headerLine = 0;
+            
+            // Rileva il formato del CSV
+            // Se c'è una riga "Ticker" nelle prime righe
+            if (lines.length > 3 && lines[1].toLowerCase().includes('ticker')) {
+                startLine = 4; // Salta Price, Ticker, Date
+                headerLine = 0; // Header è alla riga 0
+            }
+            
+            console.log(`Parsing CSV: ${filename}, ${lines.length} linee totali`);
+            console.log(`Header line: "${lines[headerLine]}"`);
+            console.log(`Start data line ${startLine}: "${lines[startLine]}"`);
+            
+            // Determina indice colonne dal VERO header (riga 0)
+            const headers = lines[headerLine].toLowerCase().split(',');
+            console.log('Headers found:', headers);
+            
+            // Cerca indici colonne in modo più robusto
+            let dateIdx = -1, closeIdx = -1, highIdx = -1, lowIdx = -1, openIdx = -1, volumeIdx = -1;
+            
+            headers.forEach((h, idx) => {
+                h = h.trim();
+                if (h.includes('date')) dateIdx = idx;
+                if (h.includes('close') || h.includes('price')) closeIdx = idx;
+                if (h.includes('high')) highIdx = idx;
+                if (h.includes('low')) lowIdx = idx;
+                if (h.includes('open')) openIdx = idx;
+                if (h.includes('volume')) volumeIdx = idx;
+            });
+            
+            // Se non trovato, usa posizione fissa per formato specifico
+            // Price,Close,High,Low,Open,Volume => Date è colonna 0 dei dati
+            if (dateIdx === -1) dateIdx = 0;
+            if (closeIdx === -1) closeIdx = 1;
+            if (highIdx === -1) highIdx = 2;
+            if (lowIdx === -1) lowIdx = 3;
+            if (openIdx === -1) openIdx = 4;
+            if (volumeIdx === -1) volumeIdx = 5;
+            
+            console.log(`Column indices: Date=${dateIdx}, Close=${closeIdx}, High=${highIdx}, Low=${lowIdx}, Open=${openIdx}, Volume=${volumeIdx}`);
+            
+            // Parse righe dati
+            for (let i = startLine; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line || line.length < 10) continue;
+                
+                const values = line.split(',');
+                
+                if (values.length >= 5) {
+                    try {
+                        const dateStr = values[dateIdx].trim();
+                        const close = parseFloat(values[closeIdx]);
+                        const high = parseFloat(values[highIdx]);
+                        const low = parseFloat(values[lowIdx]);
+                        const open = parseFloat(values[openIdx]);
+                        
+                        // Validazione
+                        if (dateStr && dateStr.match(/\d{4}-\d{2}-\d{2}/) && !isNaN(close) && close > 0) {
+                            const parsedDate = new Date(dateStr);
+                            
+                            if (!isNaN(parsedDate.getTime())) {
+                                data.push({
+                                    date: parsedDate,
+                                    open: !isNaN(open) ? open : close,
+                                    high: !isNaN(high) ? high : close,
+                                    low: !isNaN(low) ? low : close,
+                                    close: close,
+                                    volume: parseInt(values[volumeIdx]) || 0
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        console.warn(`Riga ${i} skipped:`, e.message);
+                        continue;
+                    }
+                }
+            }
+            
+            // Filtra date invalide e ordina per data crescente
+            const validData = data
+                .filter(d => d.date && !isNaN(d.date.getTime()))
+                .sort((a, b) => a.date - b.date);
+            
+            console.log(`✅ Dati validi estratti: ${validData.length}`);
+            if (validData.length > 0) {
+                console.log(`Prima riga:`, validData[0]);
+                console.log(`Ultima riga:`, validData[validData.length - 1]);
+            }
+            
+            return validData;
+        }
+
+        // Trova swing points
+        function findSwingPoints(data, period = 5, findTops = true) {
+            const swings = [];
+            
+            for (let i = period; i < data.length - period; i++) {
+                let isSwing = true;
+                const currentPrice = findTops ? data[i].high : data[i].low;
+                
+                for (let j = 1; j <= period; j++) {
+                    const beforePrice = findTops ? data[i - j].high : data[i - j].low;
+                    const afterPrice = findTops ? data[i + j].high : data[i + j].low;
+                    
+                    if (findTops) {
+                        if (beforePrice >= currentPrice || afterPrice >= currentPrice) {
+                            isSwing = false;
+                            break;
+                        }
+                    } else {
+                        if (beforePrice <= currentPrice || afterPrice <= currentPrice) {
+                            isSwing = false;
+                            break;
+                        }
+                    }
+                }
+                
+                if (isSwing) {
+                    swings.push({
+                        index: i,
+                        price: currentPrice,
+                        date: data[i].date
+                    });
+                }
+            }
+            
+            return swings;
+        }
+
+        // Rileva pattern Testa e Spalle
+        function detectHeadAndShoulders(data, bearish = true) {
+            const patterns = [];
+            const swings = findSwingPoints(data, 5, bearish);
+            
+            if (swings.length < 5) return patterns;
+            
+            for (let i = 0; i < swings.length - 4; i++) {
+                const ls = swings[i];
+                const lv = swings[i + 1];
+                const h = swings[i + 2];
+                const rv = swings[i + 3];
+                const rs = swings[i + 4];
+                
+                let isValid = false;
+                
+                if (bearish) {
+                    isValid = h.price > ls.price * 1.05 && 
+                             h.price > rs.price * 1.05 &&
+                             Math.abs(ls.price - rs.price) / ls.price < 0.15;
+                } else {
+                    isValid = h.price < ls.price * 0.95 && 
+                             h.price < rs.price * 0.95 &&
+                             Math.abs(ls.price - rs.price) / ls.price < 0.15;
+                }
+                
+                if (isValid) {
+                    const neckline = (lv.price + rv.price) / 2;
+                    
+                    let necklineBreak = null;
+                    for (let j = rs.index + 1; j < Math.min(rs.index + 20, data.length); j++) {
+                        if (bearish && data[j].close < neckline) {
+                            necklineBreak = j;
+                            break;
+                        } else if (!bearish && data[j].close > neckline) {
+                            necklineBreak = j;
+                            break;
+                        }
+                    }
+                    
+                    if (necklineBreak !== null) {
+                        patterns.push({
+                            type: bearish ? 'bearish' : 'bullish',
+                            leftShoulder: ls,
+                            leftShoulderBar: ls.index,
+                            head: h,
+                            headBar: h.index,
+                            rightShoulder: rs,
+                            rightShoulderBar: rs.index,
+                            leftValley: lv,
+                            rightValley: rv,
+                            neckline: neckline,
+                            breakIndex: necklineBreak,
+                            breakDate: data[necklineBreak].date,
+                            breakPrice: data[necklineBreak].close,
+                            patternHeight: Math.abs(h.price - neckline)
+                        });
+                    }
+                }
+            }
+            
+            return patterns;
+        }
+
+        // Simula trading con trailing stop (SOLO CHIUSURE DAILY)
+        // LOGICA REALISTICA:
+        //   Giorno X:   close rompe neckline → segnale rilevato
+        //   Giorno X+1: entry sul close (primo momento in cui puoi agire)
+        //   Giorno X+2 in poi: valutazione SL/TP/Trailing
+        function simulateTrading(pattern, data, stopLossPercent, takeProfitPercent, trailingStopPercent) {
+            const isBullish = pattern.type === 'bullish';
+            
+            // Entry sul giorno SUCCESSIVO alla rottura
+            const entryIndex = pattern.breakIndex + 1;
+            
+            // Se non c'è un giorno successivo nei dati, trade non eseguibile
+            if (entryIndex >= data.length) {
+                return {
+                    exit: 'no_data',
+                    exitDate: pattern.breakDate,
+                    exitPrice: pattern.breakPrice,
+                    profit: 0,
+                    trailingActivated: false
+                };
+            }
+            
+            const entryPrice = data[entryIndex].close;
+            const entryDate = data[entryIndex].date;
+            
+            const slDistance = entryPrice * (stopLossPercent / 100);
+            const tpDistance = entryPrice * (takeProfitPercent / 100);
+            
+            let stopLoss = isBullish ? entryPrice - slDistance : entryPrice + slDistance;
+            let takeProfit = isBullish ? entryPrice + tpDistance : entryPrice - tpDistance;
+            
+            let highestProfit = 0;
+            let trailingActivated = false;
+            
+            // Valutazione parte dal giorno dopo l'entry (X+2)
+            for (let i = entryIndex + 1; i < data.length; i++) {
+                const close = data[i].close;
+                
+                const currentProfit = isBullish ? 
+                    (close - entryPrice) / entryPrice * 100 :
+                    (entryPrice - close) / entryPrice * 100;
+                
+                if (currentProfit > highestProfit) {
+                    highestProfit = currentProfit;
+                    
+                    if (highestProfit >= trailingStopPercent) {
+                        trailingActivated = true;
+                        const trailDistance = close * (trailingStopPercent / 100);
+                        
+                        if (isBullish) {
+                            const newSL = close - trailDistance;
+                            if (newSL > stopLoss) stopLoss = newSL;
+                        } else {
+                            const newSL = close + trailDistance;
+                            if (newSL < stopLoss) stopLoss = newSL;
+                        }
+                    }
+                }
+                
+                if (isBullish) {
+                    if (close <= stopLoss) {
+                        return {
+                            exit: 'stop_loss',
+                            entryDate: entryDate,
+                            entryPrice: entryPrice,
+                            exitDate: data[i].date,
+                            exitPrice: close,
+                            profit: (close - entryPrice) / entryPrice * 100,
+                            trailingActivated: trailingActivated
+                        };
+                    }
+                    if (close >= takeProfit) {
+                        return {
+                            exit: 'take_profit',
+                            entryDate: entryDate,
+                            entryPrice: entryPrice,
+                            exitDate: data[i].date,
+                            exitPrice: close,
+                            profit: (close - entryPrice) / entryPrice * 100,
+                            trailingActivated: trailingActivated
+                        };
+                    }
+                } else {
+                    if (close >= stopLoss) {
+                        return {
+                            exit: 'stop_loss',
+                            entryDate: entryDate,
+                            entryPrice: entryPrice,
+                            exitDate: data[i].date,
+                            exitPrice: close,
+                            profit: (entryPrice - close) / entryPrice * 100,
+                            trailingActivated: trailingActivated
+                        };
+                    }
+                    if (close <= takeProfit) {
+                        return {
+                            exit: 'take_profit',
+                            entryDate: entryDate,
+                            entryPrice: entryPrice,
+                            exitDate: data[i].date,
+                            exitPrice: close,
+                            profit: (entryPrice - close) / entryPrice * 100,
+                            trailingActivated: trailingActivated
+                        };
+                    }
+                }
+            }
+            
+            const lastClose = data[data.length - 1].close;
+            const finalProfit = isBullish ?
+                (lastClose - entryPrice) / entryPrice * 100 :
+                (entryPrice - lastClose) / entryPrice * 100;
+            
+            return {
+                exit: 'open',
+                entryDate: entryDate,
+                entryPrice: entryPrice,
+                exitDate: data[data.length - 1].date,
+                exitPrice: lastClose,
+                profit: finalProfit,
+                trailingActivated: trailingActivated
+            };
+        }
+
+        // Analizza pattern
+        function analyzePattern() {
+            const stopLoss = parseFloat(document.getElementById('stopLoss').value);
+            const takeProfit = parseFloat(document.getElementById('takeProfit').value);
+            const trailingStop = parseFloat(document.getElementById('trailingStop').value);
+            
+            const btn = document.getElementById('analyzeBtn');
+            btn.disabled = true;
+            btn.querySelector('.btn-text').textContent = 'Analisi in corso...';
+            
+            document.getElementById('patternsList').innerHTML = 
+                '<div class="loading"><div class="spinner"></div>Ricerca pattern Testa e Spalle...</div>';
+            
+            setTimeout(() => {
+                try {
+                    const bearishPatterns = detectHeadAndShoulders(priceData, true);
+                    const bullishPatterns = detectHeadAndShoulders(priceData, false);
+                    
+                    detectedPatterns = [...bearishPatterns, ...bullishPatterns].sort((a, b) => 
+                        b.breakDate - a.breakDate
+                    );
+                    
+                    detectedPatterns.forEach(pattern => {
+                        pattern.tradeResult = simulateTrading(pattern, priceData, stopLoss, takeProfit, trailingStop);
+                    });
+                    
+                    displayPatterns(detectedPatterns);
+                    updateStatistics(detectedPatterns);
+                    addPatternsToChart(detectedPatterns);
+                    
+                    // Calcola e mostra statistiche avanzate + equity
+                    calculateAdvancedStatistics(detectedPatterns);
+                    
+                } catch (error) {
+                    console.error('Errore:', error);
+                    document.getElementById('patternsList').innerHTML = 
+                        `<div class="no-patterns">⚠️ Errore nell'analisi: ${error.message}</div>`;
+                } finally {
+                    btn.disabled = false;
+                    btn.querySelector('.btn-text').textContent = 'Analizza Pattern';
+                }
+            }, 100);
+        }
+
+        // Aggiorna grafico
+        function updateChart(data, symbol) {
+            chart.data.datasets[0].data = data.map(d => ({
+                x: d.date,
+                y: d.close
+            }));
+            
+            chart.update();
+            
+            const firstDate = data[0].date.toLocaleDateString('it-IT');
+            const lastDate = data[data.length - 1].date.toLocaleDateString('it-IT');
+            document.getElementById('chartTitle').textContent = 
+                `${symbol} · ${firstDate} - ${lastDate} · ${data.length} giorni`;
+        }
+
+        // Aggiungi pattern al grafico
+        function addPatternsToChart(patterns) {
+            chart.data.datasets = chart.data.datasets.filter(ds => ds.label === 'Prezzo');
+            
+            patterns.forEach((pattern, idx) => {
+                const color = pattern.type === 'bearish' ? '#ff3366' : '#00ff9f';
+                
+                chart.data.datasets.push({
+                    label: `Pattern ${idx + 1}`,
+                    data: [
+                        { x: pattern.leftShoulder.date, y: pattern.leftShoulder.price },
+                        { x: pattern.head.date, y: pattern.head.price },
+                        { x: pattern.rightShoulder.date, y: pattern.rightShoulder.price }
+                    ],
+                    borderColor: color,
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    pointRadius: 5,
+                    pointBackgroundColor: color,
+                    showLine: true,
+                    tension: 0
+                });
+                
+                chart.data.datasets.push({
+                    label: `Neckline ${idx + 1}`,
+                    data: [
+                        { x: pattern.leftValley.date, y: pattern.neckline },
+                        { x: pattern.breakDate, y: pattern.neckline }
+                    ],
+                    borderColor: color,
+                    backgroundColor: 'transparent',
+                    borderWidth: 1,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    showLine: true
+                });
+            });
+            
+            chart.update();
+        }
+
+        // Mostra pattern
+        function displayPatterns(patterns) {
+            const container = document.getElementById('patternsList');
+            
+            if (patterns.length === 0) {
+                container.innerHTML = '<div class="no-patterns">Nessun pattern Testa e Spalle rilevato</div>';
+                return;
+            }
+            
+            container.innerHTML = patterns.map((pattern, idx) => {
+                const result = pattern.tradeResult;
+                const profitClass = result.profit >= 0 ? 'profit' : 'loss';
+                const profitSign = result.profit >= 0 ? '+' : '';
+                
+                return `
+                    <div class="pattern-item ${pattern.type}" onclick="showPatternDetail(${idx})">
+                        <div class="zoom-indicator">👁 Clicca per dettagli</div>
+                        <div class="pattern-header">
+                            <span class="pattern-type ${pattern.type}">
+                                ${pattern.type === 'bearish' ? '▼ Bearish' : '▲ Bullish'} H&S
+                            </span>
+                            <span class="pattern-date">${pattern.breakDate.toLocaleDateString('it-IT')}</span>
+                        </div>
+                        <div class="pattern-details">
+                            <div class="detail-item">
+                                <span class="detail-label">Spalla SX</span>
+                                <span class="detail-value">${pattern.leftShoulder.price.toFixed(2)}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Testa</span>
+                                <span class="detail-value">${pattern.head.price.toFixed(2)}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Spalla DX</span>
+                                <span class="detail-value">${pattern.rightShoulder.price.toFixed(2)}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Neckline</span>
+                                <span class="detail-value">${pattern.neckline.toFixed(2)}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Entry</span>
+                                <span class="detail-value">${pattern.tradeResult.entryPrice.toFixed(2)}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Altezza</span>
+                                <span class="detail-value">${pattern.patternHeight.toFixed(2)}</span>
+                            </div>
+                        </div>
+                        <div class="trade-result ${profitClass}">
+                            <strong>Risultato:</strong> ${profitSign}${result.profit.toFixed(2)}% · 
+                            <strong>Uscita:</strong> ${result.exit.replace('_', ' ')} · 
+                            <strong>Data:</strong> ${result.exitDate.toLocaleDateString('it-IT')} ·
+                            <strong>Trailing:</strong> ${result.trailingActivated ? 'Sì' : 'No'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Aggiorna statistiche
+        function updateStatistics(patterns) {
+            const wins = patterns.filter(p => p.tradeResult.profit > 0).length;
+            const total = patterns.length;
+            const winRate = total > 0 ? (wins / total * 100).toFixed(1) : 0;
+            
+            const totalProfit = patterns.reduce((sum, p) => sum + Math.max(0, p.tradeResult.profit), 0);
+            const totalLoss = Math.abs(patterns.reduce((sum, p) => sum + Math.min(0, p.tradeResult.profit), 0));
+            const profitFactor = totalLoss > 0 ? (totalProfit / totalLoss).toFixed(2) : totalProfit.toFixed(2);
+            
+            document.getElementById('patternsCount').textContent = total;
+            document.getElementById('winRate').textContent = winRate + '%';
+            document.getElementById('profitFactor').textContent = profitFactor;
+        }
+
+        // ==================== ADVANCED STATISTICS ====================
+        
+        function calculateAdvancedStatistics(patterns) {
+            if (patterns.length === 0) return;
+
+            // Show statistics section
+            document.getElementById('statisticsSection').style.display = 'block';
+
+            // Ordina pattern per data
+            const sortedPatterns = [...patterns].sort((a, b) => a.breakDate - b.breakDate);
+
+            // Calcola equity curve - FIX: usa rischio fisso per trade
+            const riskPerTrade = 2; // 2% rischio per trade
+            let equity = 10000; // Start capital in $
+            equityData = [{ date: sortedPatterns[0].breakDate, equity: equity }];
+
+            sortedPatterns.forEach(pattern => {
+                const profitPercent = pattern.tradeResult.profit;
+                // Calcola P&L basato sul rischio
+                const riskAmount = equity * (riskPerTrade / 100);
+                const slPercent = parseFloat(document.getElementById('stopLoss').value);
+                const lotSize = riskAmount / slPercent;
+                const pnl = lotSize * profitPercent;
+                
+                equity += pnl;
+                equityData.push({
+                    date: pattern.tradeResult.exitDate,
+                    equity: equity,
+                    trade: pattern
+                });
+            });
+
+            // Calcola metriche
+            const wins = sortedPatterns.filter(p => p.tradeResult.profit > 0);
+            const losses = sortedPatterns.filter(p => p.tradeResult.profit < 0);
+            
+            const totalReturn = ((equity - 10000) / 10000 * 100).toFixed(2);
+            
+            // Max Drawdown
+            let peak = 10000;
+            let maxDD = 0;
+            equityData.forEach(point => {
+                if (point.equity > peak) peak = point.equity;
+                const dd = ((peak - point.equity) / peak * 100);
+                if (dd > maxDD) maxDD = dd;
+            });
+
+            // Average Win/Loss
+            const avgWin = wins.length > 0 ? 
+                (wins.reduce((sum, p) => sum + p.tradeResult.profit, 0) / wins.length).toFixed(2) : 0;
+            const avgLoss = losses.length > 0 ? 
+                (losses.reduce((sum, p) => sum + p.tradeResult.profit, 0) / losses.length).toFixed(2) : 0;
+
+            // Sharpe Ratio (simplified)
+            const returns = sortedPatterns.map(p => p.tradeResult.profit);
+            const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+            const stdDev = Math.sqrt(returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length);
+            const sharpeRatio = stdDev > 0 ? (avgReturn / stdDev).toFixed(2) : 0;
+
+            // Expectancy
+            const expectancy = ((avgWin * wins.length - Math.abs(avgLoss) * losses.length) / patterns.length).toFixed(2);
+
+            // Win/Loss Streaks
+            let currentStreak = 0;
+            let winStreak = 0;
+            let lossStreak = 0;
+            sortedPatterns.forEach(p => {
+                if (p.tradeResult.profit > 0) {
+                    currentStreak = currentStreak > 0 ? currentStreak + 1 : 1;
+                    winStreak = Math.max(winStreak, currentStreak);
+                } else {
+                    currentStreak = currentStreak < 0 ? currentStreak - 1 : -1;
+                    lossStreak = Math.max(lossStreak, Math.abs(currentStreak));
+                }
+            });
+
+            // Recovery Factor
+            const recoveryFactor = maxDD > 0 ? (parseFloat(totalReturn) / maxDD).toFixed(2) : 0;
+
+            // Average trade duration
+            const durations = sortedPatterns.map(p => {
+                const entry = p.tradeResult.entryDate.getTime();
+                const exit = p.tradeResult.exitDate.getTime();
+                return (exit - entry) / (1000 * 60 * 60 * 24); // days
+            });
+            const avgDuration = (durations.reduce((a, b) => a + b, 0) / durations.length).toFixed(0);
+
+            // Best trade
+            const bestTrade = Math.max(...sortedPatterns.map(p => p.tradeResult.profit)).toFixed(2);
+
+            // Update UI
+            document.getElementById('totalReturn').textContent = totalReturn + '%';
+            document.getElementById('totalReturn').style.color = 
+                totalReturn >= 0 ? 'var(--accent-primary)' : 'var(--accent-danger)';
+            
+            document.getElementById('maxDrawdown').textContent = '-' + maxDD.toFixed(2) + '%';
+            document.getElementById('sharpeRatio').textContent = sharpeRatio;
+            document.getElementById('avgWin').textContent = '+' + avgWin + '%';
+            document.getElementById('avgLoss').textContent = avgLoss + '%';
+            document.getElementById('expectancy').textContent = expectancy + '%';
+            document.getElementById('expectancy').style.color = 
+                expectancy >= 0 ? 'var(--accent-primary)' : 'var(--accent-danger)';
+            document.getElementById('winStreak').textContent = winStreak;
+            document.getElementById('lossStreak').textContent = lossStreak;
+            document.getElementById('recoveryFactor').textContent = recoveryFactor;
+            document.getElementById('totalTrades').textContent = patterns.length;
+            document.getElementById('avgDuration').textContent = avgDuration + ' days';
+            document.getElementById('bestTrade').textContent = '+' + bestTrade + '%';
+
+            // Draw equity chart
+            drawEquityChart();
+        }
+
+        function drawEquityChart() {
+            const ctx = document.getElementById('equityCanvas').getContext('2d');
+            
+            if (equityChart) {
+                equityChart.destroy();
+            }
+
+            // Calcola min/max per asse Y fisso
+            const equityValues = equityData.map(d => d.equity);
+            const minEquity = Math.min(...equityValues);
+            const maxEquity = Math.max(...equityValues);
+            
+            // Aggiungi padding 10% sopra e sotto
+            const range = maxEquity - minEquity;
+            const padding = Math.max(range * 0.1, 500); // Minimo 500 di padding
+            const yMin = Math.floor((minEquity - padding) / 1000) * 1000; // Arrotonda a 1000
+            const yMax = Math.ceil((maxEquity + padding) / 1000) * 1000;
+
+            console.log('Equity range:', minEquity.toFixed(2), '-', maxEquity.toFixed(2));
+            console.log('Y-axis fixed at:', yMin, '-', yMax);
+
+            equityChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'Equity ($)',
+                        data: equityData.map(d => ({ x: d.date, y: d.equity })),
+                        borderColor: '#00ff9f',
+                        backgroundColor: 'rgba(0, 255, 159, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#00ff9f',
+                        pointHoverRadius: 6,
+                        fill: true,
+                        tension: 0.1
+                    }, {
+                        label: 'Starting Capital',
+                        data: [
+                            { x: equityData[0].date, y: 10000 },
+                            { x: equityData[equityData.length - 1].date, y: 10000 }
+                        ],
+                        borderColor: '#a0a6b1',
+                        backgroundColor: 'transparent',
+                        borderWidth: 1,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        showLine: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: '#e6e8eb',
+                                font: {
+                                    family: 'IBM Plex Mono',
+                                    size: 11
+                                },
+                                usePointStyle: true
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(26, 31, 46, 0.95)',
+                            titleColor: '#00ff9f',
+                            bodyColor: '#e6e8eb',
+                            borderColor: '#2a3142',
+                            borderWidth: 1,
+                            padding: 12,
+                            callbacks: {
+                                label: function(context) {
+                                    const equity = context.parsed.y.toFixed(2);
+                                    const returnPct = ((context.parsed.y - 10000) / 10000 * 100).toFixed(2);
+                                    return `Equity: $${equity} (${returnPct >= 0 ? '+' : ''}${returnPct}%)`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'month',
+                                displayFormats: {
+                                    month: 'MMM yyyy'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.05)',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                color: '#a0a6b1',
+                                font: {
+                                    family: 'IBM Plex Mono',
+                                    size: 11
+                                }
+                            }
+                        },
+                        y: {
+                            position: 'right',
+                            min: yMin,  // FISSO: min dell'asse Y
+                            max: yMax,  // FISSO: max dell'asse Y
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.05)',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                color: '#a0a6b1',
+                                font: {
+                                    family: 'IBM Plex Mono',
+                                    size: 11
+                                },
+                                callback: function(value) {
+                                    return '$' + value.toFixed(0);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function exportEquity() {
+            let csv = 'Date,Equity,Return%\n';
+            equityData.forEach(point => {
+                const returnPct = ((point.equity - 10000) / 10000 * 100).toFixed(2);
+                csv += `${point.date.toISOString().split('T')[0]},${point.equity.toFixed(2)},${returnPct}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `equity_curve_${symbolName}.csv`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        // ==================== WALK-FORWARD ANALYSIS ====================
+
+        function runWalkForward() {
+            const inSampleMonths = parseInt(document.getElementById('inSampleMonths').value);
+            const outSampleMonths = parseInt(document.getElementById('outSampleMonths').value);
+
+            if (detectedPatterns.length < 5) {
+                alert('Servono almeno 5 pattern per la Walk-Forward Analysis');
+                return;
+            }
+
+            const sortedPatterns = [...detectedPatterns].sort((a, b) => a.breakDate - b.breakDate);
+            
+            const firstDate = sortedPatterns[0].breakDate;
+            const lastDate = sortedPatterns[sortedPatterns.length - 1].tradeResult.exitDate;
+            
+            const periodLength = (inSampleMonths + outSampleMonths) * 30 * 24 * 60 * 60 * 1000; // ms
+            const inSampleLength = inSampleMonths * 30 * 24 * 60 * 60 * 1000;
+
+            let results = [];
+            let currentDate = firstDate.getTime();
+            const endDate = lastDate.getTime();
+
+            while (currentDate + periodLength < endDate) {
+                const inSampleEnd = currentDate + inSampleLength;
+                const outSampleEnd = inSampleEnd + (outSampleMonths * 30 * 24 * 60 * 60 * 1000);
+
+                // In-Sample patterns
+                const inSamplePatterns = sortedPatterns.filter(p => {
+                    const pDate = p.breakDate.getTime();
+                    return pDate >= currentDate && pDate < inSampleEnd;
+                });
+
+                // Out-Sample patterns
+                const outSamplePatterns = sortedPatterns.filter(p => {
+                    const pDate = p.breakDate.getTime();
+                    return pDate >= inSampleEnd && pDate < outSampleEnd;
+                });
+
+                if (inSamplePatterns.length >= 3 && outSamplePatterns.length >= 1) {
+                    // Calculate metrics
+                    const inMetrics = calculatePeriodMetrics(inSamplePatterns);
+                    const outMetrics = calculatePeriodMetrics(outSamplePatterns);
+
+                    results.push({
+                        startDate: new Date(currentDate),
+                        inSampleEnd: new Date(inSampleEnd),
+                        outSampleEnd: new Date(outSampleEnd),
+                        inSample: inMetrics,
+                        outSample: outMetrics
+                    });
+                }
+
+                currentDate += periodLength;
+            }
+
+            displayWalkForwardResults(results);
+        }
+
+        function calculatePeriodMetrics(patterns) {
+            if (patterns.length === 0) return null;
+
+            const wins = patterns.filter(p => p.tradeResult.profit > 0).length;
+            const winRate = (wins / patterns.length * 100).toFixed(1);
+            
+            const totalProfit = patterns.reduce((sum, p) => sum + Math.max(0, p.tradeResult.profit), 0);
+            const totalLoss = Math.abs(patterns.reduce((sum, p) => sum + Math.min(0, p.tradeResult.profit), 0));
+            const profitFactor = totalLoss > 0 ? (totalProfit / totalLoss).toFixed(2) : totalProfit.toFixed(2);
+
+            const totalReturn = patterns.reduce((sum, p) => sum + p.tradeResult.profit, 0).toFixed(2);
+
+            return {
+                trades: patterns.length,
+                winRate: winRate,
+                profitFactor: profitFactor,
+                totalReturn: totalReturn
+            };
+        }
+
+        function displayWalkForwardResults(results) {
+            if (results.length === 0) {
+                document.getElementById('wfResults').innerHTML = 
+                    '<div class="no-patterns">Dati insufficienti per Walk-Forward Analysis</div>';
+                return;
+            }
+
+            // Draw chart
+            const ctx = document.getElementById('walkforwardCanvas').getContext('2d');
+            
+            if (walkforwardChart) {
+                walkforwardChart.destroy();
+            }
+
+            walkforwardChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: results.map(r => r.startDate.toLocaleDateString('it-IT', { month: 'short', year: 'numeric' })),
+                    datasets: [{
+                        label: 'In-Sample Return %',
+                        data: results.map(r => parseFloat(r.inSample.totalReturn)),
+                        backgroundColor: 'rgba(0, 255, 159, 0.6)',
+                        borderColor: '#00ff9f',
+                        borderWidth: 1
+                    }, {
+                        label: 'Out-Sample Return %',
+                        data: results.map(r => parseFloat(r.outSample.totalReturn)),
+                        backgroundColor: 'rgba(0, 212, 255, 0.6)',
+                        borderColor: '#00d4ff',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: '#e6e8eb',
+                                font: {
+                                    family: 'IBM Plex Mono',
+                                    size: 11
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.05)'
+                            },
+                            ticks: {
+                                color: '#a0a6b1',
+                                font: {
+                                    family: 'IBM Plex Mono',
+                                    size: 10
+                                }
+                            }
+                        },
+                        y: {
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.05)'
+                            },
+                            ticks: {
+                                color: '#a0a6b1',
+                                font: {
+                                    family: 'IBM Plex Mono',
+                                    size: 11
+                                },
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Display results cards
+            const resultsHTML = results.map((r, idx) => `
+                <div class="wf-result-card">
+                    <div class="wf-period">📊 Periodo ${idx + 1}: ${r.startDate.toLocaleDateString('it-IT')} - ${r.outSampleEnd.toLocaleDateString('it-IT')}</div>
+                    <div style="margin-bottom: 10px; font-weight: 600; color: var(--accent-primary);">In-Sample</div>
+                    <div class="wf-metric">
+                        <span class="wf-metric-label">Trades:</span>
+                        <span class="wf-metric-value">${r.inSample.trades}</span>
+                    </div>
+                    <div class="wf-metric">
+                        <span class="wf-metric-label">Win Rate:</span>
+                        <span class="wf-metric-value">${r.inSample.winRate}%</span>
+                    </div>
+                    <div class="wf-metric">
+                        <span class="wf-metric-label">Profit Factor:</span>
+                        <span class="wf-metric-value">${r.inSample.profitFactor}</span>
+                    </div>
+                    <div class="wf-metric">
+                        <span class="wf-metric-label">Return:</span>
+                        <span class="wf-metric-value" style="color: ${r.inSample.totalReturn >= 0 ? 'var(--accent-primary)' : 'var(--accent-danger)'}">
+                            ${r.inSample.totalReturn}%
+                        </span>
+                    </div>
+                </div>
+                <div class="wf-result-card out-sample">
+                    <div class="wf-period">🎯 Out-Sample Validation</div>
+                    <div style="margin-bottom: 10px; font-weight: 600; color: var(--accent-secondary);">Out-of-Sample</div>
+                    <div class="wf-metric">
+                        <span class="wf-metric-label">Trades:</span>
+                        <span class="wf-metric-value">${r.outSample.trades}</span>
+                    </div>
+                    <div class="wf-metric">
+                        <span class="wf-metric-label">Win Rate:</span>
+                        <span class="wf-metric-value">${r.outSample.winRate}%</span>
+                    </div>
+                    <div class="wf-metric">
+                        <span class="wf-metric-label">Profit Factor:</span>
+                        <span class="wf-metric-value">${r.outSample.profitFactor}</span>
+                    </div>
+                    <div class="wf-metric">
+                        <span class="wf-metric-label">Return:</span>
+                        <span class="wf-metric-value" style="color: ${r.outSample.totalReturn >= 0 ? 'var(--accent-primary)' : 'var(--accent-danger)'}">
+                            ${r.outSample.totalReturn}%
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('wfResults').innerHTML = resultsHTML;
+        }
+        // ==================== TAB SWITCHING ====================
+        function switchTab(tabName) {
+            // Aggiorna bottoni
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+
+            const targetBtn = tabName === 'scanner' ? 0 : 1;
+            document.querySelectorAll('.tab-btn')[targetBtn].classList.add('active');
+            document.getElementById('tab-' + tabName).classList.add('active');
+
+            // Se passi allo scanner, ricarica i segnali
+            if (tabName === 'scanner') {
+                loadSignals();
+            }
+        }
+
+        // ==================== SCANNER ====================
+
+        let extraSymbols = [];       // titoli aggiunti dall'utente in questa sessione
+
+        // ── Fetch signals.json dal repo ──
+        // Percorso relativo: funziona sia in develop (GitHub Pages) sia in locale
+        const SIGNALS_URL = 'data/signals.json';
+
+        async function loadSignals() {
+            setStatus('loading', 'Caricamento segnali…');
+            try {
+                const res = await fetch(SIGNALS_URL);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const json = await res.json();
+                renderSignals(json);
+            } catch (e) {
+                setStatus('stale', 'Errore nel caricamento: ' + e.message);
+                document.getElementById('signalsGrid').innerHTML =
+                    '<div class="no-signals"><div class="icon">⚠️</div>' +
+                    'Non è stato possibile caricare i segnali.<br><small>Assicurati che data/signals.json esista nel repo.</small></div>';
+            }
+        }
+
+        // ── Render signal cards ──
+        function renderSignals(json) {
+            const signals = json.signals || [];
+            const params  = json.parameters || {};
+            const genAt   = json.generated_at || '–';
+
+            // Aggiorna parametri bar
+            document.getElementById('paramSL').textContent   = (params.stop_loss_pct || '–') + '%';
+            document.getElementById('paramTP').textContent   = (params.take_profit_pct || '–') + '%';
+            document.getElementById('paramTR').textContent   = (params.trailing_pct || '–') + '%';
+            document.getElementById('paramDate').textContent = genAt;
+
+            // Controlla se il JSON è stale (> 2 giorni)
+            const genDate = new Date(genAt.replace(' UTC',''));
+            const now     = new Date();
+            const diffDays = (now - genDate) / (1000 * 60 * 60 * 24);
+            if (diffDays > 2) {
+                setStatus('stale', `Ultimo aggiornamento: ${genAt} (dati potenzialmente vecchi)`);
+            } else {
+                setStatus('ok', `${signals.length} segnali attivi · Aggiornato: ${genAt}`);
+            }
+
+            // Filtra per eventuali extra symbols? No – lo scanner Python gestisce già tutto.
+            // I titoli extra vengono mostrati nell'UI come promessa all'utente di aggiungere.
+
+            if (signals.length === 0) {
+                document.getElementById('signalsGrid').innerHTML =
+                    '<div class="no-signals"><div class="icon">🔍</div>Nessun segnale attivo al momento.<br><small>Lo scanner aggiorna ogni mattina lavorativa alle 6:30</small></div>';
+                return;
+            }
+
+            document.getElementById('signalsGrid').innerHTML = signals.map(s => renderSignalCard(s)).join('');
+        }
+
+        function renderSignalCard(s) {
+            const isBuy  = s.signal_type === 'BUY';
+            const cls    = isBuy ? 'buy' : 'sell';
+            const badge  = isBuy
+                ? '<span class="signal-badge buy">▲ BUY</span>'
+                : '<span class="signal-badge sell">▼ SELL</span>';
+            const confCls = s.confidence === 'high' ? 'high' : '';
+
+            // Calcolo distanze percentuali da entry
+            const slDist = Math.abs((s.stop_loss - s.entry_price) / s.entry_price * 100).toFixed(2);
+            const tpDist = Math.abs((s.take_profit - s.entry_price) / s.entry_price * 100).toFixed(2);
+
+            return `
+            <div class="signal-card ${cls}">
+                <div class="signal-confidence ${confCls}">⬥ ${s.confidence}</div>
+                <div class="signal-card-header">
+                    <span class="signal-symbol">${s.symbol}</span>
+                    ${badge}
+                </div>
+                <div class="signal-prices">
+                    <div class="signal-price-item">
+                        <div class="signal-price-label">Entry</div>
+                        <div class="signal-price-value entry">${s.entry_price}</div>
+                    </div>
+                    <div class="signal-price-item">
+                        <div class="signal-price-label">Stop Loss <span style="color:var(--text-secondary);font-size:0.6rem;">(${slDist}%)</span></div>
+                        <div class="signal-price-value sl">${s.stop_loss}</div>
+                    </div>
+                    <div class="signal-price-item">
+                        <div class="signal-price-label">Take Profit <span style="color:var(--text-secondary);font-size:0.6rem;">(${tpDist}%)</span></div>
+                        <div class="signal-price-value tp">${s.take_profit}</div>
+                    </div>
+                </div>
+                <div class="signal-meta">
+                    <span>📈 Neckline: ${s.neckline}</span>
+                    <span>📐 Altezza: ${s.height_pct}%</span>
+                </div>
+                <div class="signal-meta" style="margin-top:8px; border-top:none; padding-top:0;">
+                    <span>⚡ Rottura: ${s.break_date}</span>
+                    <span>🎯 Entry: ${s.entry_date}</span>
+                </div>
+            </div>`;
+        }
+
+        // ── Status helper ──
+        function setStatus(type, text) {
+            const dot  = document.getElementById('statusDot');
+            const span = document.getElementById('statusText');
+            dot.className = 'scanner-status-dot' + (type === 'stale' ? ' stale' : '');
+            span.textContent = text;
+        }
+
+        // ── Aggiungi titolo extra ──
+        // Nota: i titoli aggiunti vengono salvati nel file data/symbols.txt nel repo.
+        // In questa sessione li mostriamo nell'UI come conferma visiva.
+        // Per attivarli nello scanner: aggiungili manualmente a data/symbols.txt e ricommittare.
+        function addSymbol() {
+            const input = document.getElementById('addSymbolInput');
+            let val = input.value.trim().toUpperCase();
+            if (!val) return;
+
+            // Aggiungi .MI se non ha un punto (assume Milano di default)
+            if (!val.includes('.')) {
+                // Se sembra un ticker US (tutte lettere, ≤ 5 char) lascialo senza suffisso
+                // Altrimenti aggiungi .MI
+                if (/^[A-Z]{1,5}$/.test(val)) {
+                    // Potrebbe essere US o MI – chiedi? No, lascia pulito. 
+                    // L'utente può scrivere esplicitamente ENI.MI se vuole Milano
+                } 
+            }
+
+            if (extraSymbols.includes(val)) {
+                input.style.borderColor = 'var(--accent-danger)';
+                setTimeout(() => input.style.borderColor = '', 1000);
+                return;
+            }
+
+            extraSymbols.push(val);
+            input.value = '';
+            renderExtraSymbols();
+
+            // Mostra toast informativo
+            showToast(`${val} aggiunto! Aggiungi "${val}" a data/symbols.txt nel repo per attivarlo nello scanner.`);
+        }
+
+        function removeSymbol(val) {
+            extraSymbols = extraSymbols.filter(s => s !== val);
+            renderExtraSymbols();
+        }
+
+        function renderExtraSymbols() {
+            const container = document.getElementById('addedSymbolsList');
+            container.innerHTML = extraSymbols.map(s =>
+                `<div class="added-symbol-tag">${s} <span class="remove-tag" onclick="removeSymbol('${s}')">×</span></div>`
+            ).join('');
+        }
+
+        // ── Toast notification ──
+        function showToast(msg) {
+            let toast = document.getElementById('toast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'toast';
+                toast.style.cssText = `
+                    position:fixed; bottom:30px; left:50%; transform:translateX(-50%);
+                    background:var(--bg-card); border:1px solid var(--accent-primary);
+                    color:var(--text-primary); padding:14px 24px; border-radius:8px;
+                    font-family:'IBM Plex Mono',monospace; font-size:0.8rem;
+                    z-index:1000; opacity:0; transition:opacity 0.3s; max-width:90vw;
+                    text-align:center; box-shadow:0 4px 20px rgba(0,0,0,0.4);
+                `;
+                document.body.appendChild(toast);
+            }
+            toast.textContent = msg;
+            toast.style.opacity = '1';
+            setTimeout(() => toast.style.opacity = '0', 4000);
+        }
+
+        // ── Auto-load scanner on page load ──
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSignals();
+        });
+    </script>
+</body>
+</html>
